@@ -1,34 +1,23 @@
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 class Line {
-   static currentCursor = 0;
-   static currentLineNumber = 0;
-   static currentLine = null;
-
    lineNumber = 0;
    nextLine = null;
    prevLine = null;
    sentence = "";
-   constructor(word = "") {
-      Line.currentLineNumber++;
-      Line.currentLine = this;
-      this.lineNumber = Line.currentLineNumber;
-      this.nextLine = null;
-      this.prevLine = null;
+
+   constructor(word = "", lineNumber = 0) {
       this.sentence = word;
+      this.lineNumber = lineNumber;
    }
 
    addCharacter(character) {
       this.sentence += character;
-      Line.currentCursor++;
    }
 
    deleteCharacter() {
-      if (Line.currentCursor > 0) {
-         this.sentence =
-            this.sentence.substring(0, Line.currentCursor - 1) +
-            this.sentence.substring(Line.currentCursor);
-         Line.moveCursorLeft();
+      if (this.sentence.length > 0) {
+         this.sentence = this.sentence.slice(0, -1);
       }
    }
 
@@ -41,7 +30,6 @@ class Line {
       this.prevLine = prevLine;
       prevLine.nextLine = this;
    }
-
    moveCursorRight() {
       if (Line.currentCursor < Line.currentLine.sentence.length) {
          Line.currentCursor++;
@@ -86,49 +74,104 @@ class Line {
    }
 }
 
+function Cursor({ visible, left }) {
+   return (
+      <span
+         className={`bg-black h-5 w-1 absolute top-0 left-${left} ${
+            visible ? "visible" : "invisible"
+         }`}
+         style={{ left: `${left * 16}px` }}
+      >
+         I
+      </span>
+   );
+}
+
 function App() {
    const [cursor, setCursor] = useState(false);
-   const [lines, setLines] = useState([]);
+   const [lines, setLines] = useState([new Line("")]);
+   const [currentCursor, setCurrentCursor] = useState(0);
+   const [currentLineNumber, setCurrentLineNumber] = useState(0);
+   const [currentLine, setCurrentLine] = useState(lines[lines.length - 1]);
    const cursorRef = useRef(null);
+
    useEffect(() => {
       const handleKeyPress = (event) => {
-         const line = new Line("");
-         while (event.key !== "Enter") {
-            line.addCharacter(event.key);
+         if (event.key !== "Enter" && event.key !== "Backspace") {
+            // Add character to current line and update cursor position
+            const updatedLine = currentLine;
+            updatedLine.addCharacter(event.key);
+            setCurrentLine(updatedLine);
+            setCurrentCursor(currentCursor + 1);
+         } else if (event.key === "Backspace") {
+            // Delete character from current line and update cursor position
+            if (currentCursor > 0) {
+               const updatedLine = currentLine;
+               updatedLine.deleteCharacter();
+               setCurrentLine(updatedLine);
+               setCurrentCursor(currentCursor - 1);
+            }
+         } else {
+            // Add new line and update cursor and line number
+            const newLine = new Line("", currentLineNumber + 1);
+            setCurrentLineNumber(currentLineNumber + 1);
+            setCurrentLine(newLine);
+            setCurrentCursor(0);
+            setLines([...lines, currentLine, newLine]);
          }
-         setLines([...lines, line]);
-         const newLine = new Line("");
-         line.addNewLine(newLine);
+         for (let i = 0; i < lines.length; i++) {
+            console.log(lines[i].sentence);
+         }
       };
-      if (cursor) {
-         cursorRef.current.classList.remove("hidden");
-         document.addEventListener("keypress", handleKeyPress);
-      }
-      const handleClickOutside = (event) => {
-         if (!cursorRef.current.contains(event.target)) {
-            cursorRef.current.classList.add("hidden");
+
+      const handleOutsideClick = (event) => {
+         if (event.target !== cursorRef.current) {
             setCursor(false);
          }
       };
-      document.addEventListener("mousedown", handleClickOutside);
+
+      document.addEventListener("click", handleOutsideClick);
+
+      if (cursor) {
+         document.addEventListener("keypress", handleKeyPress);
+      }
+
       return () => {
-         document.removeEventListener("mousedown", handleClickOutside);
          document.removeEventListener("keypress", handleKeyPress);
+         document.removeEventListener("click", handleOutsideClick);
       };
-   }, [cursor]);
+   }, [
+      cursor,
+      lines,
+      currentCursor,
+      currentLineNumber,
+      currentLine,
+      cursorRef,
+      setCursor,
+      setLines,
+      setCurrentCursor,
+      setCurrentLineNumber,
+      setCurrentLine,
+   ]);
 
    return (
       <div className="bg-slate-500 h-screen flex flex-col items-center space-y-10">
          <h1 className="text-white text-4xl text-center pt-10">Realtime Text Editor</h1>
          <div
-            className="bg-white w-1/2 h-96"
+            className="bg-white w-1/2 h-96 flex flex-col"
             onClick={() => {
                setCursor(true);
             }}
+            ref={cursorRef}
          >
-            <span className="text-3xl hidden" ref={cursorRef}>
-               I
-            </span>
+            {lines.map((line, index) => (
+               <h2 key={index} className="flex flex-row">
+                  {line.sentence}
+                  {/* {cursor && line.lineNumber === currentLineNumber && (
+                     <Cursor visible={true} left={currentCursor} />
+                  )} */}
+               </h2>
+            ))}
          </div>
       </div>
    );
